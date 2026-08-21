@@ -12,10 +12,12 @@ import { PlayerProfileModal } from '../components/PlayerProfileModal';
 import { PodiumSocialCard } from '../components/PodiumSocialCard';
 import { Match } from '../types/pickleball';
 import { getSessionRemainingTime } from '../lib/storage';
-import { Settings, Plus, RotateCcw, Sparkles, Clock, Trophy, Minus } from 'lucide-react';
+import { isCloudConfigured } from '../lib/supabase';
+import { Settings, Plus, RotateCcw, Sparkles, Clock, Trophy, Minus, MapPin, Cloud, ArrowLeftRight } from 'lucide-react';
 
 function TournamentApp() {
   const {
+    currentVenue,
     session,
     courts,
     checkins,
@@ -24,6 +26,7 @@ function TournamentApp() {
     autoFillCourts,
     setCourtCount,
     advanceStep,
+    leaveVenue,
     selectedPlayerId,
     setSelectedPlayerId,
     playersMap
@@ -38,13 +41,13 @@ function TournamentApp() {
   if (!isLoaded) {
     return (
       <div className="min-h-screen bg-[#0b1220] flex items-center justify-center font-mono text-xs text-slate-400">
-        INITIALIZING NIGHT MATCH OPEN PLAY...
+        INITIALIZING OPEN PLAY CLOUD HUB...
       </div>
     );
   }
 
-  // 1. Session Gate Landing
-  if (session.onboarding_step === 'session_gate') {
+  // 1. Session & Venue Gate Landing (Select saved court venue or create new)
+  if (session.onboarding_step === 'session_gate' || session.onboarding_step === 'venue_select' || !currentVenue) {
     return (
       <div className="min-h-screen bg-[#0b1220] text-slate-100 flex flex-col stadium-lights-backdrop">
         <SessionLanding />
@@ -52,7 +55,7 @@ function TournamentApp() {
     );
   }
 
-  // 2. Onboarding Setup
+  // 2. Onboarding Setup (Venue Capacity & Search-Recruit Players)
   if (session.onboarding_step !== 'active_hub') {
     return (
       <div className="min-h-screen bg-[#0b1220] text-slate-100 flex flex-col stadium-lights-backdrop">
@@ -73,16 +76,16 @@ function TournamentApp() {
                 <h1 className="font-scoreboard text-2xl font-bold tracking-tight text-white uppercase italic leading-none">
                   OPEN PLAY
                 </h1>
-                <p className="text-[11px] text-slate-400">Session Setup & Recruitment</p>
+                <p className="text-[11px] text-slate-400">{currentVenue.name} • Setup & Recruitment</p>
               </div>
             </div>
 
             <button
-              onClick={() => advanceStep('session_gate')}
+              onClick={leaveVenue}
               className="text-xs font-mono text-slate-400 hover:text-white flex items-center space-x-1"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Back to Landing</span>
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+              <span>Switch Court Venue</span>
             </button>
           </div>
         </header>
@@ -132,21 +135,39 @@ function TournamentApp() {
               </svg>
             </div>
             <div>
-              <h1 className="font-scoreboard text-2xl sm:text-3xl font-bold tracking-tight text-white uppercase italic leading-none">
-                OPEN PLAY
-              </h1>
+              <div className="flex items-center space-x-2">
+                <h1 className="font-scoreboard text-2xl sm:text-3xl font-bold tracking-tight text-white uppercase italic leading-none">
+                  OPEN PLAY
+                </h1>
+                <span className="hidden sm:inline-flex items-center space-x-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#111c30] border border-slate-700 text-slate-300">
+                  <Cloud className={`w-3 h-3 ${isCloudConfigured ? 'text-[#2dd4bf]' : 'text-slate-400'}`} />
+                  <span>{isCloudConfigured ? 'Cloud Live' : 'Local'}</span>
+                </span>
+              </div>
               <p className="text-[11px] text-slate-400 font-sans tracking-wide">
-                Ranked Pickleball Session Manager
+                {currentVenue.name} • {session.name}
               </p>
             </div>
           </div>
 
-          {/* SESSION BADGE & QUICK LIVE COURT STEPPERS */}
+          {/* SESSION INFO BADGE & QUICK ACTIONS */}
           <div className="flex items-center flex-wrap gap-2.5">
+            
+            {/* VENUE SWITCHER PILL */}
+            <button
+              onClick={leaveVenue}
+              className="px-3 py-1.5 rounded-full bg-[#0b1220] hover:bg-slate-800 border border-slate-700 text-xs font-mono text-slate-300 flex items-center space-x-1.5 transition"
+              title="Switch to another saved pickleball court venue"
+            >
+              <MapPin className="w-3.5 h-3.5 text-[#fbbf24]" />
+              <span className="font-bold text-white max-w-[130px] truncate">{currentVenue.name}</span>
+              <span className="text-[10px] text-slate-500">⇄</span>
+            </button>
+
+            {/* SESSION INFO BADGE */}
             <div className="px-4 py-1.5 rounded-full bg-[#111c30] border border-slate-700/80 text-xs font-medium text-slate-200 flex items-center space-x-2.5">
-              <span className="font-semibold text-white">{session.name}</span>
               <span className="text-slate-400">
-                · <span className="capitalize">{session.mode}</span>
+                <span className="capitalize">{session.mode}</span>
               </span>
 
               {/* QUICK IN-SESSION COURT ADJUSTER STEPPER */}
@@ -170,7 +191,7 @@ function TournamentApp() {
                   className="text-slate-400 hover:text-white disabled:opacity-30 p-0.5"
                   title="Add Court (Auto-Fill)"
                 >
-                  <Plus className="w-3 h-3" />
+                  <Plus className="w-3.5 h-3.5" />
                 </button>
               </div>
 

@@ -39,6 +39,13 @@ export interface PromotionSeries {
   isSuccess: boolean;
 }
 
+export interface MatchHistoryEntry {
+  matchId: string;
+  opponentIds: string[];
+  partnerId?: string | null;
+  timestamp: string;
+}
+
 export interface Player {
   id: string; // e.g. "PL-101"
   venue_id?: string;
@@ -68,6 +75,8 @@ export interface Player {
   last_played_at?: string;
 }
 
+export type OnboardingStep = 'session_gate' | 'venue_select' | 'court_setup' | 'player_setup' | 'checkin_ready' | 'active_hub';
+
 export interface Session {
   id: string;
   venue_id?: string;
@@ -79,7 +88,7 @@ export interface Session {
   total_session_capacity: number;
   created_at: string;
   last_active_at: string;
-  onboarding_step: 'venue_select' | 'court_setup' | 'player_setup' | 'checkin_ready' | 'active_hub';
+  onboarding_step: OnboardingStep;
   is_active: boolean;
 }
 
