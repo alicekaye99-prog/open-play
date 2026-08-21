@@ -3,69 +3,96 @@
 import React, { useState } from 'react';
 import { useOpenPlay } from '../context/OpenPlayContext';
 import { getRankInfo } from '../lib/progression';
-import { Shield, Link, Plus, Search } from 'lucide-react';
+import { Shield, Link, Plus, Search, UserPlus, UserCheck, Users, Check } from 'lucide-react';
 
 export function AdventureGuildCards({ onOpenNewPlayer }: { onOpenNewPlayer: () => void }) {
   const {
-    players,
+    players = [],
     playersMap,
-    checkins,
-    courts,
+    checkins = [],
+    courts = [],
     recruitPlayerToSession,
     removePlayerFromSession,
+    checkInAll,
     setSelectedPlayerId
   } = useOpenPlay();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterTab, setFilterTab] = useState<'all' | 'in_queue' | 'not_in_queue'>('all');
 
   const activeIds = new Set<string>();
-  courts.forEach(c => {
+  (courts || []).forEach(c => {
     c.current_match?.team_a_ids.forEach(id => activeIds.add(id));
     c.current_match?.team_b_ids.forEach(id => activeIds.add(id));
   });
 
   const nextUpIds = new Set<string>();
-  courts.forEach(c => {
+  (courts || []).forEach(c => {
     c.next_up_match?.team_a_ids.forEach(id => nextUpIds.add(id));
     c.next_up_match?.team_b_ids.forEach(id => nextUpIds.add(id));
   });
 
-  const inSessionIds = new Set(checkins.map(c => c.player_id));
+  const inSessionIds = new Set((checkins || []).map(c => c.player_id));
 
-  const filteredPlayers = players.filter(p =>
-    (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (p.id || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter players by Search & Status Tabs
+  const filteredPlayers = (players || []).filter(p => {
+    const matchesSearch = (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (p.id || '').toLowerCase().includes(searchQuery.toLowerCase());
+    if (!matchesSearch) return false;
+
+    const isInSession = inSessionIds.has(p.id);
+    if (filterTab === 'in_queue') return isInSession;
+    if (filterTab === 'not_in_queue') return !isInSession;
+    return true;
+  });
+
+  const unqueuedCount = (players || []).filter(p => !inSessionIds.has(p.id)).length;
 
   return (
     <div className="space-y-6">
-      {/* HEADER & SEARCH BAR */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#111c30] border border-slate-800 rounded-3xl p-6 shadow-xl">
+      {/* HEADER CONTROLS & RECRUITMENT TOOLBAR */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-[#111c30] border border-slate-800 rounded-3xl p-6 shadow-xl">
         <div>
           <h2 className="font-scoreboard text-xl sm:text-2xl font-bold tracking-tight text-white uppercase italic flex items-center space-x-2">
             <Shield className="w-6 h-6 text-[#fbbf24]" />
             <span>PLAYER DIRECTORY & GUILD CARDS ({players.length})</span>
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Progression from Wood III to Master. Click any card to inspect stats & Bo3 promotion status.
+            Recruit registered players into today's queue or inspect full career stats.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 sm:w-64">
+          {/* SEARCH BAR */}
+          <div className="relative flex-1 sm:w-60">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search players by name/ID..."
+              placeholder="Search by name or ID..."
               className="w-full bg-[#0b1220] border border-slate-700 focus:border-[#fbbf24] rounded-xl pl-10 pr-3 py-2 text-xs text-white focus:outline-none"
             />
           </div>
 
+          {/* 1-TAP RECRUIT ALL TO QUEUE */}
+          {unqueuedCount > 0 && (
+            <button
+              type="button"
+              onClick={checkInAll}
+              className="px-3.5 py-2 rounded-xl bg-[#0c2e1b] hover:bg-[#165b32] text-[#2dd4bf] border border-[#2dd4bf]/40 font-mono text-xs font-bold transition flex items-center space-x-1.5 shadow cursor-pointer"
+              title="Add all unqueued directory players to live queue"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Recruit All to Queue ({unqueuedCount})</span>
+            </button>
+          )}
+
+          {/* ADD NEW PLAYER */}
           <button
+            type="button"
             onClick={onOpenNewPlayer}
-            className="px-4 py-2 rounded-xl bg-[#fbbf24] hover:bg-[#f59e0b] text-slate-950 font-scoreboard text-sm uppercase italic font-bold tracking-tight shadow-md flex items-center space-x-1 transition"
+            className="px-4 py-2 rounded-xl bg-[#fbbf24] hover:bg-[#f59e0b] text-slate-950 font-scoreboard text-sm uppercase italic font-bold tracking-tight shadow-md flex items-center space-x-1 transition cursor-pointer"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
             <span>+ Add Player</span>
@@ -73,10 +100,38 @@ export function AdventureGuildCards({ onOpenNewPlayer }: { onOpenNewPlayer: () =
         </div>
       </div>
 
+      {/* FILTER TABS */}
+      <div className="flex items-center space-x-2 border-b border-slate-800/80 pb-1 text-xs font-mono">
+        <button
+          onClick={() => setFilterTab('all')}
+          className={`px-3 py-1.5 rounded-xl font-bold transition ${
+            filterTab === 'all' ? 'bg-[#fbbf24] text-slate-950' : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          All Players ({players.length})
+        </button>
+        <button
+          onClick={() => setFilterTab('in_queue')}
+          className={`px-3 py-1.5 rounded-xl font-bold transition ${
+            filterTab === 'in_queue' ? 'bg-[#fbbf24] text-slate-950' : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          In Live Queue ({checkins.length})
+        </button>
+        <button
+          onClick={() => setFilterTab('not_in_queue')}
+          className={`px-3 py-1.5 rounded-xl font-bold transition ${
+            filterTab === 'not_in_queue' ? 'bg-[#fbbf24] text-slate-950' : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          Available to Recruit ({unqueuedCount})
+        </button>
+      </div>
+
       {/* GUILD CARDS GRID */}
       {filteredPlayers.length === 0 ? (
         <div className="py-16 text-center text-slate-500 font-mono text-sm italic bg-[#111c30] border border-slate-800 rounded-3xl">
-          No players found. Click <strong className="text-white">+ Add Player</strong> to register someone new.
+          No players found matching this filter.
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -99,7 +154,7 @@ export function AdventureGuildCards({ onOpenNewPlayer }: { onOpenNewPlayer: () =
                 onClick={() => setSelectedPlayerId(player.id)}
                 className={`rounded-3xl border-2 ${rank.borderColor} ${rank.badgeBg} p-5 relative overflow-hidden transition-all duration-200 cursor-pointer hover:scale-[1.02] flex flex-col justify-between space-y-4 shadow-lg`}
               >
-                {/* TOP IDENTITY & RANK BADGE */}
+                {/* TOP IDENTITY & RANK */}
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="flex items-center space-x-2">
@@ -139,7 +194,7 @@ export function AdventureGuildCards({ onOpenNewPlayer }: { onOpenNewPlayer: () =
                   </div>
                 ) : (
                   <div className="text-[11px] font-mono text-slate-400 italic px-1">
-                    Solo Adventurer
+                    Solo Player (Open Queue)
                   </div>
                 )}
 
@@ -161,7 +216,7 @@ export function AdventureGuildCards({ onOpenNewPlayer }: { onOpenNewPlayer: () =
                   </div>
                 </div>
 
-                {/* STATUS FOOTER */}
+                {/* QUEUE RECRUITMENT & STATUS FOOTER */}
                 <div className="flex items-center justify-between pt-1 text-xs">
                   <div className="flex items-center space-x-1.5 font-mono text-[11px]">
                     {isPlaying ? (
@@ -169,31 +224,35 @@ export function AdventureGuildCards({ onOpenNewPlayer }: { onOpenNewPlayer: () =
                     ) : isOnDeck ? (
                       <span className="text-[#fbbf24] font-bold">● Next Up on Deck</span>
                     ) : isInSession ? (
-                      <span className="text-slate-300">● In Today's Queue</span>
+                      <span className="text-emerald-400 font-medium">● In Live Queue</span>
                     ) : (
-                      <span className="text-slate-500">Not in Session</span>
+                      <span className="text-slate-500">Not in Queue</span>
                     )}
                   </div>
 
                   {isInSession ? (
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         removePlayerFromSession(player.id);
                       }}
-                      className="px-2.5 py-1 rounded-lg bg-rose-950/80 hover:bg-rose-900 text-[#f97316] border border-rose-800 font-mono text-[10px] font-bold transition"
+                      className="px-3 py-1 rounded-xl bg-rose-950/80 hover:bg-rose-900 text-[#f97316] border border-rose-800 font-mono text-[11px] font-bold transition cursor-pointer"
+                      title="Remove player from live queue"
                     >
                       Remove ✕
                     </button>
                   ) : (
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         recruitPlayerToSession(player.id);
                       }}
-                      className="px-3 py-1 rounded-lg bg-[#fbbf24] hover:bg-[#f59e0b] text-slate-950 font-mono text-[11px] font-bold transition shadow"
+                      className="px-3.5 py-1.5 rounded-xl bg-[#fbbf24] hover:bg-[#f59e0b] text-slate-950 font-mono text-[11px] font-bold transition shadow flex items-center space-x-1 cursor-pointer active:scale-[0.97]"
                     >
-                      + Recruit Today
+                      <UserPlus className="w-3.5 h-3.5 stroke-[2.5]" />
+                      <span>+ Add to Queue</span>
                     </button>
                   )}
                 </div>
