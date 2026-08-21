@@ -2,16 +2,16 @@
 
 import React, { useState } from 'react';
 import { useOpenPlay } from '../context/OpenPlayContext';
-import { Link, Unlink, Plus, Users, Check, Sparkles } from 'lucide-react';
+import { getRankInfo } from '../lib/progression';
+import { Link, Unlink, Plus, Check } from 'lucide-react';
 
 export function QueueSection({ onOpenNewPlayer }: { onOpenNewPlayer: () => void }) {
   const {
-    checkins,
+    checkins = [],
     playersMap,
-    courts,
+    courts = [],
     groupQueuePair,
     dissolveQueuePair,
-    toggleCheckIn,
     setSelectedPlayerId
   } = useOpenPlay();
 
@@ -19,14 +19,14 @@ export function QueueSection({ onOpenNewPlayer }: { onOpenNewPlayer: () => void 
 
   // Busy players currently playing or staged on deck
   const busyIds = new Set<string>();
-  courts.forEach(c => {
+  (courts || []).forEach(c => {
     c.current_match?.team_a_ids.forEach(id => busyIds.add(id));
     c.current_match?.team_b_ids.forEach(id => busyIds.add(id));
     c.next_up_match?.team_a_ids.forEach(id => busyIds.add(id));
     c.next_up_match?.team_b_ids.forEach(id => busyIds.add(id));
   });
 
-  const waitingCheckins = checkins.filter(c => !busyIds.has(c.player_id));
+  const waitingCheckins = (checkins || []).filter(c => !busyIds.has(c.player_id));
 
   // Selection toggle for pairing
   const handleToggleSelect = (playerId: string) => {
@@ -36,7 +36,6 @@ export function QueueSection({ onOpenNewPlayer }: { onOpenNewPlayer: () => void 
       if (selectedForPairing.length < 2) {
         setSelectedForPairing(prev => [...prev, playerId]);
       } else {
-        // Replace second selection
         setSelectedForPairing([selectedForPairing[0], playerId]);
       }
     }
@@ -64,11 +63,12 @@ export function QueueSection({ onOpenNewPlayer }: { onOpenNewPlayer: () => void 
         </div>
 
         <button
+          type="button"
           onClick={onOpenNewPlayer}
-          className="px-3 py-1.5 rounded-xl bg-[#fbbf24] hover:bg-[#f59e0b] text-slate-950 font-bold text-xs flex items-center space-x-1 transition shadow-sm"
+          className="px-3 py-1.5 rounded-xl bg-[#fbbf24] hover:bg-[#f59e0b] text-slate-950 font-bold text-xs flex items-center space-x-1 transition shadow-sm cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span>+ Add Walk-In</span>
+          <span>+ Add Player</span>
         </button>
       </div>
 
@@ -83,15 +83,17 @@ export function QueueSection({ onOpenNewPlayer }: { onOpenNewPlayer: () => void 
 
           <div className="flex items-center space-x-2">
             <button
+              type="button"
               onClick={() => setSelectedForPairing([])}
               className="px-2.5 py-1 rounded-lg text-[11px] font-mono text-slate-400 hover:text-white"
             >
               Cancel
             </button>
             <button
+              type="button"
               onClick={handleGroupSelected}
               disabled={selectedForPairing.length !== 2}
-              className="px-4 py-1.5 rounded-xl bg-[#2dd4bf] hover:bg-[#14b8a6] disabled:opacity-40 text-slate-950 font-bold text-xs flex items-center space-x-1.5 transition"
+              className="px-4 py-1.5 rounded-xl bg-[#2dd4bf] hover:bg-[#14b8a6] disabled:opacity-40 text-slate-950 font-bold text-xs flex items-center space-x-1.5 transition cursor-pointer"
             >
               <Link className="w-3.5 h-3.5" />
               <span>Group as Pair 🔗</span>
@@ -100,7 +102,7 @@ export function QueueSection({ onOpenNewPlayer }: { onOpenNewPlayer: () => void 
         </div>
       )}
 
-      {/* QUEUE LIST WITH SELECT-TO-PAIR & DISSOLVE BUTTONS */}
+      {/* QUEUE LIST */}
       <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
         {waitingCheckins.length === 0 ? (
           <div className="py-8 text-center text-slate-500 font-mono text-xs italic bg-[#0b1220] rounded-2xl border border-slate-800">
@@ -113,6 +115,7 @@ export function QueueSection({ onOpenNewPlayer }: { onOpenNewPlayer: () => void 
 
             const isSelected = selectedForPairing.includes(player.id);
             const partner = player.locked_partner_id ? playersMap.get(player.locked_partner_id) : null;
+            const rank = getRankInfo(player.rank_value || 1);
 
             return (
               <div
@@ -126,7 +129,7 @@ export function QueueSection({ onOpenNewPlayer }: { onOpenNewPlayer: () => void 
                 }`}
               >
                 <div className="flex items-center space-x-3">
-                  {/* Pair selection checkbox (only for unpartnered or to regroup) */}
+                  {/* Pair selection checkbox */}
                   <div
                     onClick={() => handleToggleSelect(player.id)}
                     className={`w-5 h-5 rounded-lg flex items-center justify-center cursor-pointer transition ${
@@ -156,27 +159,29 @@ export function QueueSection({ onOpenNewPlayer }: { onOpenNewPlayer: () => void 
                       </div>
                     ) : (
                       <div className="text-[10px] font-mono text-slate-400">
-                        {chk.games_played_today} games played today • Solo
+                        {chk.games_played_today || 0} games played today • Solo
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* DISSOLVE BUTTON (FOR PAIRED PLAYERS) OR QUEUE UNTICK */}
+                {/* DISSOLVE BUTTON OR CP/TIER DISPLAY */}
                 <div className="flex items-center space-x-1.5">
                   {partner ? (
                     <button
+                      type="button"
                       onClick={() => dissolveQueuePair(player.id)}
-                      className="px-2.5 py-1 rounded-lg bg-rose-950/80 hover:bg-rose-900 text-[#f97316] border border-rose-800 font-mono text-[10px] font-bold transition flex items-center space-x-1"
+                      className="px-2.5 py-1 rounded-lg bg-rose-950/80 hover:bg-rose-900 text-[#f97316] border border-rose-800 font-mono text-[10px] font-bold transition flex items-center space-x-1 cursor-pointer"
                       title="Dissolve this pair back to solo players"
                     >
                       <Unlink className="w-3 h-3" />
                       <span>Dissolve ✕</span>
                     </button>
                   ) : (
-                    <span className="font-mono text-slate-400 text-[11px]">
-                      {player.mmr_doubles} MMR
-                    </span>
+                    <div className="text-right font-mono">
+                      <div className="text-[11px] font-bold text-slate-200">{player.current_cp || 0} CP</div>
+                      <div className={`text-[9px] ${rank.textColor}`}>{rank.displayName}</div>
+                    </div>
                   )}
                 </div>
               </div>
