@@ -1,5 +1,11 @@
 import { Tier, SubTier, RankTier, Player, PromotionSeries } from '../types/pickleball';
 
+export const UNIFORM_STARTING_MMR = 800;
+export const BASE_CP_WIN = 20;
+export const BASE_CP_LOSS = 20;
+export const PARTNER_GAP_THRESHOLD = 4;
+export const SKILL_GAP_THRESHOLD = 4;
+
 export interface RankInfo {
   rankValue: number;
   tier: Tier;
@@ -37,9 +43,9 @@ export function getRankInfo(rankValue: number): RankInfo {
   return RANK_LADDER.find(r => r.rankValue === clamped) || RANK_LADDER[0];
 }
 
-export const BASE_CP_WIN = 20;
-export const BASE_CP_LOSS = 20;
-export const PARTNER_GAP_THRESHOLD = 4;
+export function getTierFromMMR(rankValueOrCP: number): RankTier {
+  return getRankInfo(rankValueOrCP).displayName;
+}
 
 export interface CPAdjustment {
   cpDelta: number;
@@ -114,7 +120,6 @@ export function applyMatchToPlayer(
     graceRemaining -= 1;
   }
 
-  // Promotion Bo3 Handling
   if (activeSeries && !activeSeries.isComplete) {
     const wins = activeSeries.wins + (isWinner ? 1 : 0);
     const losses = activeSeries.losses + (isWinner ? 0 : 1);
