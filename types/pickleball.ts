@@ -23,7 +23,7 @@ export type RankTier =
 
 export interface Venue {
   id: string;
-  name: string; // e.g. "BGC Pickleball Club"
+  name: string;
   default_courts: number;
   default_mode: GameMode;
   queue_capacity_per_court: number;

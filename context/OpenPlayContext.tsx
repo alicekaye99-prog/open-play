@@ -1,13 +1,14 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
-import { Player, Session, SessionCheckin, Court, Match, GameMode, Gender } from '../types/pickleball';
+import { Player, Session, SessionCheckin, Court, Match, GameMode, Gender, Venue } from '../types/pickleball';
 import { db } from '../lib/db';
+import { supabase, isCloudConfigured } from '../lib/supabase';
 import { isSessionValid, getInitialCourts } from '../lib/storage';
 import { calculateCPAdjustment, applyMatchToPlayer, getRankInfo } from '../lib/progression';
 import { generateNextMatch } from '../lib/matchmaker';
 
-// PURE HELPER: Fill courts synchronously
+// PURE HELPER: Fills courts synchronously without race conditions
 function computeFillAllCourts(
   currentCourts: Court[],
   currentCheckins: SessionCheckin[],
@@ -25,7 +26,7 @@ function computeFillAllCourts(
     c.next_up_match?.team_b_ids.forEach(id => busy.add(id));
   });
 
-  // PASS 1: Fill ALL Open Live Courts FIRST
+  // PASS 1: Fill all open live courts first
   for (let i = 0; i < updated.length; i++) {
     if (!updated[i].current_match) {
       const avail = currentCheckins.filter(c => !busy.has(c.player_id));
@@ -45,7 +46,7 @@ function computeFillAllCourts(
     }
   }
 
-  // PASS 2: Stage "Next Up" on-deck slips ONLY after all courts are live
+  // PASS 2: Stage Next Up on-deck slips
   for (let i = 0; i < updated.length; i++) {
     if (updated[i].current_match && !updated[i].next_up_match) {
       const avail = currentCheckins.filter(c => !busy.has(c.player_id));
@@ -67,7 +68,9 @@ function computeFillAllCourts(
   return updated;
 }
 
-interface OpenPlayContextType {
+export interface OpenPlayContextType {
+  venues: Venue[];
+  currentVenue: Venue | null;
   players: Player[];
   playersMap: Map<string, Player>;
   session: Session;
@@ -78,6 +81,10 @@ interface OpenPlayContextType {
   hasExistingSession: boolean;
   selectedPlayerId: string | null;
   setSelectedPlayerId: (id: string | null) => void;
+  selectVenue: (venueId: string) => Promise<void>;
+  createVenue: (name: string, defaultCourts: number, mode: GameMode, queueCapacity: number) => Promise<Venue>;
+  deleteVenue: (venueId: string) => Promise<void>;
+  leaveVenue: () => void;
   continueExistingSession: () => void;
   startNewSession: (name: string, courtCount: number, mode: GameMode, queuePlayersPerCourt: number) => void;
   setupSession: (name: string, courtCount: number, mode: GameMode, queuePlayersPerCourt: number) => void;
@@ -104,6 +111,8 @@ const OpenPlayContext = createContext<OpenPlayContextType | undefined>(undefined
 
 export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false);
+  const [venues, setVenues] = useState<Venue[]>([]);
+  const [currentVenue, setCurrentVenue] = useState<Venue | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [hasExistingSession, setHasExistingSession] = useState(false);
@@ -126,35 +135,65 @@ export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
   const [matches, setMatches] = useState<Match[]>([]);
 
   useEffect(() => {
-    async function initDatabase() {
+    async function init() {
       try {
-        const allPlayers = await db.players.toArray();
-        setPlayers(allPlayers);
+        let loadedVenues: Venue[] = [];
+        let loadedPlayers: Player[] = [];
 
-        const latestSession = await db.sessions.orderBy('created_at').last();
-        if (latestSession && isSessionValid(latestSession)) {
-          setSession(latestSession);
-          setHasExistingSession(true);
-          const allCheckins = await db.checkins.toArray();
-          const allCourts = await db.courts.orderBy('court_number').toArray();
-          const allMatches = await db.matches.orderBy('created_at').reverse().toArray();
+        if (isCloudConfigured && supabase) {
+          const { data: vData } = await supabase.from('venues').select('*').order('created_at', { ascending: false });
+          if (vData) loadedVenues = vData;
 
-          setCheckins(allCheckins);
-          setCourts(allCourts.length > 0 ? allCourts : getInitialCourts(latestSession.court_count || 4));
-          setMatches(allMatches);
+          const { data: pData } = await supabase.from('players').select('*');
+          if (pData) loadedPlayers = pData;
         } else {
-          setHasExistingSession(false);
-          setCourts(getInitialCourts(4));
-          setSession(prev => ({ ...prev, onboarding_step: 'session_gate', is_active: false }));
+          loadedVenues = await db.venues.orderBy('created_at').reverse().toArray();
+          loadedPlayers = await db.players.toArray();
+
+          if (loadedVenues.length === 0) {
+            const defaultV: Venue = {
+              id: 'venue-default',
+              name: 'Centennial Pickleball Arena',
+              default_courts: 4,
+              default_mode: 'doubles',
+              queue_capacity_per_court: 12,
+              created_at: new Date().toISOString()
+            };
+            await db.venues.put(defaultV);
+            loadedVenues = [defaultV];
+          }
+        }
+
+        setVenues(loadedVenues);
+        setPlayers(loadedPlayers);
+
+        if (loadedVenues.length > 0) {
+          const firstVenue = loadedVenues[0];
+          setCurrentVenue(firstVenue);
+
+          const activeSess = await db.sessions.where('venue_id').equals(firstVenue.id).last();
+          if (activeSess && isSessionValid(activeSess)) {
+            setSession(activeSess);
+            setHasExistingSession(true);
+            const allCheckins = await db.checkins.toArray();
+            const allCourts = await db.courts.orderBy('court_number').toArray();
+            const allMatches = await db.matches.orderBy('created_at').reverse().toArray();
+
+            setCheckins(allCheckins);
+            setCourts(allCourts.length > 0 ? allCourts : getInitialCourts(activeSess.court_count || 4));
+            setMatches(allMatches);
+          } else {
+            setCourts(getInitialCourts(firstVenue.default_courts || 4));
+          }
         }
       } catch (err) {
-        console.error('Dexie init error:', err);
+        console.error('Init error:', err);
       } finally {
         setIsLoaded(true);
       }
     }
 
-    initDatabase();
+    init();
   }, []);
 
   const playersMap = useMemo(() => {
@@ -165,6 +204,82 @@ export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
     return m;
   }, [players]);
 
+  const selectVenue = useCallback(async (venueId: string) => {
+    const target = venues.find(v => v.id === venueId);
+    if (!target) return;
+
+    setCurrentVenue(target);
+
+    const activeSess = await db.sessions.where('venue_id').equals(venueId).last();
+    if (activeSess && isSessionValid(activeSess)) {
+      setSession(activeSess);
+      setHasExistingSession(true);
+      const allCheckins = await db.checkins.toArray();
+      const allCourts = await db.courts.orderBy('court_number').toArray();
+      const allMatches = await db.matches.orderBy('created_at').reverse().toArray();
+
+      setCheckins(allCheckins);
+      setCourts(allCourts.length > 0 ? allCourts : getInitialCourts(activeSess.court_count || 4));
+      setMatches(allMatches);
+    } else {
+      setHasExistingSession(false);
+      setCheckins([]);
+      setMatches([]);
+      setCourts(getInitialCourts(target.default_courts || 4));
+      setSession({
+        id: `sess-${Date.now()}`,
+        venue_id: target.id,
+        name: `${target.name} Session`,
+        court_count: target.default_courts || 4,
+        mode: target.default_mode || 'doubles',
+        active_players_per_court: target.default_mode === 'singles' ? 2 : 4,
+        queue_players_per_court: target.queue_capacity_per_court || 12,
+        total_session_capacity: (target.default_courts || 4) * (target.queue_capacity_per_court || 12),
+        created_at: new Date().toISOString(),
+        last_active_at: new Date().toISOString(),
+        onboarding_step: 'session_gate',
+        is_active: false
+      });
+    }
+  }, [venues]);
+
+  const createVenue = useCallback(async (name: string, defaultCourts: number, mode: GameMode, queueCapacity: number): Promise<Venue> => {
+    const newVenue: Venue = {
+      id: `venue-${Date.now()}`,
+      name: name.trim(),
+      default_courts: Number(defaultCourts) || 4,
+      default_mode: mode || 'doubles',
+      queue_capacity_per_court: Number(queueCapacity) || 12,
+      created_at: new Date().toISOString()
+    };
+
+    setVenues(prev => [newVenue, ...prev]);
+    setCurrentVenue(newVenue);
+
+    if (isCloudConfigured && supabase) {
+      await supabase.from('venues').insert(newVenue);
+    }
+    await db.venues.put(newVenue);
+
+    return newVenue;
+  }, []);
+
+  const deleteVenue = useCallback(async (venueId: string) => {
+    setVenues(prev => prev.filter(v => v.id !== venueId));
+    if (currentVenue?.id === venueId) {
+      setCurrentVenue(venues.find(v => v.id !== venueId) || null);
+    }
+
+    if (isCloudConfigured && supabase) {
+      await supabase.from('venues').delete().eq('id', venueId);
+    }
+    await db.venues.delete(venueId);
+  }, [currentVenue, venues]);
+
+  const leaveVenue = useCallback(() => {
+    setSession(prev => ({ ...prev, onboarding_step: 'session_gate' }));
+  }, []);
+
   const continueExistingSession = useCallback(async () => {
     const updated: Session = {
       ...session,
@@ -174,6 +289,9 @@ export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
     };
     setSession(updated);
     await db.sessions.put(updated);
+    if (isCloudConfigured && supabase) {
+      await supabase.from('sessions').upsert(updated);
+    }
   }, [session]);
 
   const setupSession = useCallback(async (name: string, courtCount: number, mode: GameMode, queuePlayersPerCourt: number) => {
@@ -185,6 +303,7 @@ export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
 
     const newSess: Session = {
       id: `sess-${Date.now()}`,
+      venue_id: currentVenue?.id,
       name: (name || 'Open Play Session').trim(),
       court_count: count,
       mode: mode || 'doubles',
@@ -212,7 +331,11 @@ export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
       await db.checkins.clear();
       await db.matches.clear();
     });
-  }, []);
+
+    if (isCloudConfigured && supabase) {
+      await supabase.from('sessions').insert(newSess);
+    }
+  }, [currentVenue]);
 
   const startNewSession = setupSession;
 
@@ -245,18 +368,21 @@ export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
       total_session_capacity: targetCount * (session.queue_players_per_court || 12)
     };
 
+    const filled = computeFillAllCourts(updatedCourts, checkins, playersMap, matches, session.mode);
+
     setSession(updatedSess);
-    setCourts(updatedCourts);
+    setCourts(filled);
 
     await db.transaction('rw', db.sessions, db.courts, async () => {
       await db.sessions.put(updatedSess);
-      await db.courts.bulkPut(updatedCourts);
+      await db.courts.bulkPut(filled);
     });
-  }, [courts, session]);
+  }, [courts, session, checkins, playersMap, matches]);
 
   const recruitPlayerToSession = useCallback(async (playerId: string) => {
     const newCheckin: SessionCheckin = {
       id: `chk-${playerId}`,
+      session_id: session.id,
       player_id: playerId,
       games_played_today: 0,
       checked_in_at: new Date().toISOString()
@@ -268,20 +394,19 @@ export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
     });
 
     await db.checkins.put(newCheckin);
-  }, []);
+  }, [session]);
 
   const removePlayerFromSession = useCallback(async (playerId: string) => {
     setCheckins(prev => (prev || []).filter(c => c?.player_id !== playerId));
     await db.checkins.where('player_id').equals(playerId).delete();
   }, []);
 
-  // STARTING PLAYER INITIALIZED AT WOOD III (Rank 1) WITH 0 STARS & 0 CP
   const createPlayer = useCallback((name: string, age?: number, gender?: Gender): Player => {
     const autoId = `PL-${100 + (players?.length || 0) + 1}`;
-    const rank = getRankInfo(1); // Wood III
 
     const newPlayer: Player = {
       id: autoId,
+      venue_id: currentVenue?.id,
       name: (name || '').trim(),
       age: age ? Number(age) : undefined,
       gender: gender || 'Co-ed / Other',
@@ -304,8 +429,12 @@ export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
     setPlayers(prev => [newPlayer, ...prev]);
     db.players.put(newPlayer).catch(console.error);
 
+    if (isCloudConfigured && supabase) {
+      supabase.from('players').insert(newPlayer).then();
+    }
+
     return newPlayer;
-  }, [players]);
+  }, [players, currentVenue]);
 
   const createAndRecruitPlayer = useCallback((name: string, age?: number, gender?: Gender): Player => {
     const newPlayer = createPlayer(name, age, gender);
@@ -391,6 +520,7 @@ export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
     } else {
       const newC: SessionCheckin = {
         id: `chk-${playerId}`,
+        session_id: session.id,
         player_id: playerId,
         games_played_today: 0,
         checked_in_at: new Date().toISOString()
@@ -398,19 +528,20 @@ export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
       setCheckins(prev => [...prev, newC]);
       await db.checkins.put(newC);
     }
-  }, [checkins]);
+  }, [checkins, session]);
 
   const checkInAll = useCallback(async () => {
     const existing = new Set((checkins || []).map(c => c.player_id));
     const toAdd = (players || []).filter(p => !existing.has(p.id)).map(p => ({
       id: `chk-${p.id}`,
+      session_id: session.id,
       player_id: p.id,
       games_played_today: 0,
       checked_in_at: new Date().toISOString()
     }));
     setCheckins(prev => [...prev, ...toAdd]);
     if (toAdd.length > 0) await db.checkins.bulkPut(toAdd);
-  }, [checkins, players]);
+  }, [checkins, players, session]);
 
   const clearAllCheckins = useCallback(async () => {
     setCheckins([]);
@@ -461,9 +592,6 @@ export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
     await db.courts.bulkPut(updated);
   }, [courts, checkins, playersMap, matches, session.mode]);
 
-  // =========================================================================
-  // MATCH RESULT RECORDING: COURT POINTS (CP) & STARS ENGINE INTEGRATION
-  // =========================================================================
   const recordMatchResult = useCallback(async (matchId: string, winner: 'teamA' | 'teamB') => {
     let targetMatch: Match | undefined;
     let targetCourtNumber = -1;
@@ -485,7 +613,6 @@ export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
 
     if (!targetMatch) return;
 
-    // Get average rank values of Team A and Team B
     const teamARankValues = targetMatch.team_a_ids.map(id => playersMap.get(id)?.rank_value || 1);
     const teamBRankValues = targetMatch.team_b_ids.map(id => playersMap.get(id)?.rank_value || 1);
 
@@ -503,7 +630,6 @@ export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
     const playerCPDeltas: Record<string, number> = {};
     const playerStarDeltas: Record<string, number> = {};
 
-    // 1. Calculate CP and Stars using Court Points Engine
     const updatedPlayers = (players || []).map(p => {
       if (!p) return p;
       const inTeamA = targetMatch!.team_a_ids.includes(p.id);
@@ -550,16 +676,15 @@ export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
       return p;
     });
 
-    // 2. Sit-out fairness counter
     const involved = [...targetMatch.team_a_ids, ...targetMatch.team_b_ids];
     const updatedCheckins = (checkins || []).map(c => involved.includes(c.player_id)
       ? { ...c, games_played_today: (c.games_played_today || 0) + 1 }
       : c
     );
 
-    // 3. Match history record with CP & Star deltas
     const completed: Match = {
       ...targetMatch,
+      session_id: session.id,
       status: winner === 'teamA' ? 'teamA_win' : 'teamB_win',
       player_cp_deltas: playerCPDeltas,
       player_star_deltas: playerStarDeltas,
@@ -567,7 +692,6 @@ export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
       time_str: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    // 4. Update Courts
     let updatedCourts: Court[] = [];
     setCourts(prevCourts => {
       updatedCourts = prevCourts.map(c => {
@@ -597,9 +721,9 @@ export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
         await db.courts.bulkPut(updatedCourts);
       });
     } catch (dbErr) {
-      console.error('Dexie match error:', dbErr);
+      console.error('Dexie error:', dbErr);
     }
-  }, [courts, session.mode, playersMap, matches, players, checkins]);
+  }, [courts, session, playersMap, matches, players, checkins]);
 
   const voidMatch = useCallback(async (courtNumber: number) => {
     let updatedCourts: Court[] = [];
@@ -628,15 +752,16 @@ export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearAllData = useCallback(async () => {
-    const initialCourts = getInitialCourts(4);
+    const initialCourts = getInitialCourts(currentVenue?.default_courts || 4);
     const resetSess: Session = {
-      id: 'session-init',
-      name: 'Friday Night Open',
-      court_count: 4,
-      mode: 'doubles',
-      active_players_per_court: 4,
-      queue_players_per_court: 12,
-      total_session_capacity: 48,
+      id: `sess-${Date.now()}`,
+      venue_id: currentVenue?.id,
+      name: currentVenue ? `${currentVenue.name} Session` : 'Friday Night Open',
+      court_count: currentVenue?.default_courts || 4,
+      mode: currentVenue?.default_mode || 'doubles',
+      active_players_per_court: (currentVenue?.default_mode || 'doubles') === 'singles' ? 2 : 4,
+      queue_players_per_court: currentVenue?.queue_capacity_per_court || 12,
+      total_session_capacity: (currentVenue?.default_courts || 4) * (currentVenue?.queue_capacity_per_court || 12),
       created_at: new Date().toISOString(),
       last_active_at: new Date().toISOString(),
       onboarding_step: 'session_gate',
@@ -657,10 +782,12 @@ export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
       await db.courts.bulkPut(initialCourts);
       await db.sessions.put(resetSess);
     });
-  }, []);
+  }, [currentVenue]);
 
   return (
     <OpenPlayContext.Provider value={{
+      venues,
+      currentVenue,
       players,
       playersMap,
       session,
@@ -671,6 +798,10 @@ export function OpenPlayProvider({ children }: { children: React.ReactNode }) {
       hasExistingSession,
       selectedPlayerId,
       setSelectedPlayerId,
+      selectVenue,
+      createVenue,
+      deleteVenue,
+      leaveVenue,
       continueExistingSession,
       startNewSession,
       setupSession,
