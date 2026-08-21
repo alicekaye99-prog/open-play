@@ -46,8 +46,8 @@ function TournamentApp() {
     );
   }
 
-  // 1. Session & Venue Gate Landing (Select saved court venue or create new)
-  if (session.onboarding_step === 'session_gate' || session.onboarding_step === 'venue_select' || !currentVenue) {
+  // 1. Session Gate / Landing Screen
+  if (session.onboarding_step === 'session_gate' || session.onboarding_step === 'venue_select') {
     return (
       <div className="min-h-screen bg-[#0b1220] text-slate-100 flex flex-col stadium-lights-backdrop">
         <SessionLanding />
@@ -55,7 +55,7 @@ function TournamentApp() {
     );
   }
 
-  // 2. Onboarding Setup (Venue Capacity & Search-Recruit Players)
+  // 2. Onboarding Flow (court_setup -> player_setup -> checkin_ready)
   if (session.onboarding_step !== 'active_hub') {
     return (
       <div className="min-h-screen bg-[#0b1220] text-slate-100 flex flex-col stadium-lights-backdrop">
@@ -76,16 +76,19 @@ function TournamentApp() {
                 <h1 className="font-scoreboard text-2xl font-bold tracking-tight text-white uppercase italic leading-none">
                   OPEN PLAY
                 </h1>
-                <p className="text-[11px] text-slate-400">{currentVenue.name} • Setup & Recruitment</p>
+                <p className="text-[11px] text-slate-400">
+                  {currentVenue?.name || session.name} • Session Setup
+                </p>
               </div>
             </div>
 
             <button
+              type="button"
               onClick={leaveVenue}
-              className="text-xs font-mono text-slate-400 hover:text-white flex items-center space-x-1"
+              className="text-xs font-mono text-slate-400 hover:text-white flex items-center space-x-1 cursor-pointer"
             >
-              <ArrowLeftRight className="w-3.5 h-3.5" />
-              <span>Switch Court Venue</span>
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Back to Landing</span>
             </button>
           </div>
         </header>
@@ -104,7 +107,7 @@ function TournamentApp() {
     );
   }
 
-  // Calculate Waiting Queue Numbers
+  // 3. Main Live Dashboard (active_hub)
   const busyIds = new Set<string>();
   courts.forEach(c => {
     c.current_match?.team_a_ids.forEach(id => busyIds.add(id));
@@ -145,7 +148,7 @@ function TournamentApp() {
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 font-sans tracking-wide">
-                {currentVenue.name} • {session.name}
+                {currentVenue?.name || session.name} • {session.name}
               </p>
             </div>
           </div>
@@ -156,11 +159,11 @@ function TournamentApp() {
             {/* VENUE SWITCHER PILL */}
             <button
               onClick={leaveVenue}
-              className="px-3 py-1.5 rounded-full bg-[#0b1220] hover:bg-slate-800 border border-slate-700 text-xs font-mono text-slate-300 flex items-center space-x-1.5 transition"
-              title="Switch to another saved pickleball court venue"
+              className="px-3 py-1.5 rounded-full bg-[#0b1220] hover:bg-slate-800 border border-slate-700 text-xs font-mono text-slate-300 flex items-center space-x-1.5 transition cursor-pointer"
+              title="Switch court location"
             >
               <MapPin className="w-3.5 h-3.5 text-[#fbbf24]" />
-              <span className="font-bold text-white max-w-[130px] truncate">{currentVenue.name}</span>
+              <span className="font-bold text-white max-w-[130px] truncate">{currentVenue?.name || 'Venue'}</span>
               <span className="text-[10px] text-slate-500">⇄</span>
             </button>
 
@@ -170,14 +173,14 @@ function TournamentApp() {
                 <span className="capitalize">{session.mode}</span>
               </span>
 
-              {/* QUICK IN-SESSION COURT ADJUSTER STEPPER */}
+              {/* QUICK IN-SESSION COURT ADJUSTER */}
               <div className="flex items-center space-x-1.5 bg-[#0b1220] px-2 py-0.5 rounded-lg border border-slate-700">
                 <button
                   type="button"
                   onClick={() => setCourtCount(courts.length - 1)}
                   disabled={courts.length <= 1}
-                  className="text-slate-400 hover:text-white disabled:opacity-30 p-0.5"
-                  title="Remove Court (Auto-Balance)"
+                  className="text-slate-400 hover:text-white disabled:opacity-30 p-0.5 cursor-pointer"
+                  title="Remove Court"
                 >
                   <Minus className="w-3 h-3" />
                 </button>
@@ -188,8 +191,8 @@ function TournamentApp() {
                   type="button"
                   onClick={() => setCourtCount(courts.length + 1)}
                   disabled={courts.length >= 16}
-                  className="text-slate-400 hover:text-white disabled:opacity-30 p-0.5"
-                  title="Add Court (Auto-Fill)"
+                  className="text-slate-400 hover:text-white disabled:opacity-30 p-0.5 cursor-pointer"
+                  title="Add Court"
                 >
                   <Plus className="w-3.5 h-3.5" />
                 </button>
@@ -201,19 +204,19 @@ function TournamentApp() {
               </span>
             </div>
 
-            {/* PODIUM / END SESSION BUTTON */}
+            {/* PODIUM BUTTON */}
             <button
               onClick={() => setIsPodiumOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-[#fbbf24] hover:from-amber-400 hover:to-[#f59e0b] text-slate-950 font-scoreboard text-xs uppercase italic font-bold tracking-tight shadow-md flex items-center space-x-1.5 transition active:scale-[0.98]"
+              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-[#fbbf24] hover:from-amber-400 hover:to-[#f59e0b] text-slate-950 font-scoreboard text-xs uppercase italic font-bold tracking-tight shadow-md flex items-center space-x-1.5 transition active:scale-[0.98] cursor-pointer"
             >
               <Trophy className="w-3.5 h-3.5 fill-slate-950" />
               <span>End Session / Podium 🏆</span>
             </button>
 
-            {/* 1-CLICK FILL ALL OPEN COURTS */}
+            {/* FILL ALL COURTS */}
             <button
               onClick={autoFillCourts}
-              className="px-4 py-2 rounded-xl bg-[#fbbf24] hover:bg-[#f59e0b] text-slate-950 font-bold text-xs tracking-tight shadow-md transition flex items-center space-x-1.5 active:scale-[0.98]"
+              className="px-4 py-2 rounded-xl bg-[#fbbf24] hover:bg-[#f59e0b] text-slate-950 font-bold text-xs tracking-tight shadow-md transition flex items-center space-x-1.5 active:scale-[0.98] cursor-pointer"
             >
               <Sparkles className="w-4 h-4" />
               <span>Fill All Courts</span>
@@ -221,15 +224,15 @@ function TournamentApp() {
 
             <button
               onClick={() => setIsAddPlayerOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-[#111c30] hover:bg-slate-800 text-white font-medium text-xs border border-slate-700 transition flex items-center space-x-1"
+              className="px-3.5 py-2 rounded-xl bg-[#111c30] hover:bg-slate-800 text-white font-medium text-xs border border-slate-700 transition flex items-center space-x-1 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Add Walk-In</span>
+              <span>Add Player</span>
             </button>
 
             <button
               onClick={() => setIsSettingsOpen(true)}
-              className="p-2 rounded-xl bg-[#111c30] hover:bg-slate-800 text-slate-300 border border-slate-700 transition"
+              className="p-2 rounded-xl bg-[#111c30] hover:bg-slate-800 text-slate-300 border border-slate-700 transition cursor-pointer"
               title="Settings & Courts"
             >
               <Settings className="w-4 h-4" />
@@ -248,7 +251,7 @@ function TournamentApp() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`py-2 transition relative ${
+              className={`py-2 transition relative cursor-pointer ${
                 activeTab === tab.id
                   ? 'text-[#fbbf24] font-bold'
                   : 'text-slate-400 hover:text-slate-200'
@@ -263,10 +266,8 @@ function TournamentApp() {
         </div>
       </header>
 
-      {/* DASHBOARD CONTENT */}
+      {/* MAIN CONTENT */}
       <main className="max-w-7xl w-full mx-auto px-4 sm:px-8 pt-6">
-        
-        {/* VIEW 1: COURTS */}
         {activeTab === 'courts' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             <div className="lg:col-span-7 space-y-6">
@@ -279,7 +280,7 @@ function TournamentApp() {
                 </div>
               </div>
 
-              {/* Court Grid */}
+              {/* 2x2 Court Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
                 {courts.map(court => (
                   <CourtCard
@@ -290,7 +291,7 @@ function TournamentApp() {
                 ))}
               </div>
 
-              {/* 1-CLICK FILL ALL COURTS BANNER */}
+              {/* 1-CLICK AUTO-FILL ALL OPEN COURTS */}
               <div className="p-5 rounded-3xl bg-[#111c30] border border-slate-800 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="space-y-0.5">
                   <div className="text-xs font-mono uppercase text-[#fbbf24] font-bold flex items-center space-x-1.5">
@@ -305,8 +306,9 @@ function TournamentApp() {
                 </div>
 
                 <button
+                  type="button"
                   onClick={autoFillCourts}
-                  className="px-6 py-3 rounded-2xl bg-[#fbbf24] hover:bg-[#f59e0b] text-slate-950 font-scoreboard text-base uppercase italic font-bold tracking-tight shadow-lg flex items-center justify-center space-x-2 transition active:scale-[0.98]"
+                  className="px-6 py-3 rounded-2xl bg-[#fbbf24] hover:bg-[#f59e0b] text-slate-950 font-scoreboard text-base uppercase italic font-bold tracking-tight shadow-lg flex items-center justify-center space-x-2 transition active:scale-[0.98] cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4" />
                   <span>Fill All Open Courts</span>
@@ -321,12 +323,10 @@ function TournamentApp() {
           </div>
         )}
 
-        {/* VIEW 2: PLAYERS TAB */}
         {activeTab === 'players' && (
           <AdventureGuildCards onOpenNewPlayer={() => setIsAddPlayerOpen(true)} />
         )}
 
-        {/* VIEW 3: LEADERBOARD TAB */}
         {activeTab === 'leaderboard' && (
           <div className="space-y-4">
             <div className="font-scoreboard text-xl sm:text-2xl font-bold tracking-tight text-white uppercase italic">
@@ -336,7 +336,6 @@ function TournamentApp() {
           </div>
         )}
 
-        {/* VIEW 4: MATCH LOG TAB */}
         {activeTab === 'matchlog' && (
           <div className="space-y-4">
             <div className="font-scoreboard text-xl sm:text-2xl font-bold tracking-tight text-white uppercase italic">
@@ -363,7 +362,6 @@ function TournamentApp() {
         <SessionSettingsModal onClose={() => setIsSettingsOpen(false)} />
       )}
 
-      {/* CLICKABLE PLAYER PROFILE DRAWER */}
       {selectedPlayerId && playersMap.get(selectedPlayerId) && (
         <PlayerProfileModal
           player={playersMap.get(selectedPlayerId)!}
@@ -371,7 +369,6 @@ function TournamentApp() {
         />
       )}
 
-      {/* PODIUM CEREMONY MODAL */}
       {isPodiumOpen && (
         <PodiumSocialCard onClose={() => setIsPodiumOpen(false)} />
       )}
