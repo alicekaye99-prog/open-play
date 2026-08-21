@@ -73,9 +73,9 @@ export function RecordResultModal({
   );
 }
 
-/* 2. ADD PLAYER MODAL */
+/* 2. REGISTER PLAYER MODAL (SAVES TO DIRECTORY ONLY - NO AUTO-QUEUE) */
 export function AddPlayerModal({ onClose }: { onClose: () => void }) {
-  const { createPlayer, recruitPlayerToSession, players = [] } = useOpenPlay();
+  const { createPlayer, players = [] } = useOpenPlay();
   const [name, setName] = useState('');
   const [age, setAge] = useState<number | ''>('');
   const [gender, setGender] = useState<Gender>('Male');
@@ -83,8 +83,8 @@ export function AddPlayerModal({ onClose }: { onClose: () => void }) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    const newP = createPlayer(name, age ? Number(age) : undefined, gender);
-    recruitPlayerToSession(newP.id);
+    // Strictly saves player to permanent directory without auto-queueing
+    createPlayer(name, age ? Number(age) : undefined, gender);
     onClose();
   };
 
@@ -94,9 +94,11 @@ export function AddPlayerModal({ onClose }: { onClose: () => void }) {
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div>
             <h3 className="font-scoreboard text-lg font-bold tracking-tight text-white uppercase italic">
-              Add Player to Live Queue
+              Register New Player
             </h3>
-            <p className="text-[11px] text-slate-400">Assigned ID: PL-{100 + (players?.length || 0) + 1} (800 MMR)</p>
+            <p className="text-[11px] text-slate-400">
+              Assigned ID: PL-{100 + (players?.length || 0) + 1} (Wood III • 0 CP) • Saves to Directory
+            </p>
           </div>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-white">
             <X className="w-4 h-4" />
@@ -143,12 +145,16 @@ export function AddPlayerModal({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <div className="flex justify-end space-x-2 pt-3 border-t border-slate-800">
+        <div className="p-3 bg-[#0b1220] rounded-xl border border-slate-800 text-[11px] font-mono text-slate-400">
+          ℹ️ Player will be saved to your permanent directory. You can manually recruit them into today's queue anytime from the <strong className="text-white">Players</strong> tab.
+        </div>
+
+        <div className="flex justify-end space-x-2 pt-2 border-t border-slate-800">
           <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-400">
             Cancel
           </button>
           <button type="submit" className="px-4 py-2 rounded-xl bg-[#fbbf24] hover:bg-[#f59e0b] text-slate-950 font-bold text-xs">
-            Create & Add to Queue
+            Save to Directory
           </button>
         </div>
       </form>
@@ -156,7 +162,7 @@ export function AddPlayerModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-/* 3. SESSION SETTINGS & DYNAMIC COURT RESIZER MODAL */
+/* 3. SESSION SETTINGS MODAL */
 export function SessionSettingsModal({ onClose }: { onClose: () => void }) {
   const { session, setCourtCount, clearAllData } = useOpenPlay();
   const [courts, setCourts] = useState(session.court_count);

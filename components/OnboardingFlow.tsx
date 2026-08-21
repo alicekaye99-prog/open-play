@@ -11,7 +11,7 @@ export function OnboardingFlow() {
     players = [],
     checkins = [],
     setupSession,
-    createAndRecruitPlayer,
+    createPlayer,
     recruitPlayerToSession,
     removePlayerFromSession,
     advanceStep,
@@ -35,7 +35,7 @@ export function OnboardingFlow() {
   const [newPlayerGender, setNewPlayerGender] = useState<Gender>('Male');
   const [isCreatingNew, setIsCreatingNew] = useState(false);
 
-  // Dynamic capacity calculations with safe fallbacks
+  // Dynamic capacity calculations
   const activePerCourt = mode === 'singles' ? 2 : 4;
   const totalCapacity = (courtCount || 4) * (queuePlayersPerCourt || 12);
   const activeCapacity = (courtCount || 4) * activePerCourt;
@@ -60,7 +60,8 @@ export function OnboardingFlow() {
   const handleCreateNewPlayer = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPlayerName.trim()) return;
-    createAndRecruitPlayer(
+    // Strictly saves player to permanent directory without auto-queueing
+    createPlayer(
       newPlayerName,
       newPlayerAge ? Number(newPlayerAge) : undefined,
       newPlayerGender
@@ -110,9 +111,7 @@ export function OnboardingFlow() {
         })}
       </div>
 
-      {/* =========================================================================
-          STEP 1: VENUE & QUEUE CAPACITY CALCULATION (e.g. 12/court x 4 courts = 48)
-          ========================================================================= */}
+      {/* STEP 1: VENUE & QUEUE CAPACITY SETUP */}
       {session.onboarding_step === 'court_setup' && (
         <div className="bg-[#111c30] border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-6">
           <div>
@@ -239,9 +238,7 @@ export function OnboardingFlow() {
         </div>
       )}
 
-      {/* =========================================================================
-          STEP 2: SEARCH & RECRUIT STORED PLAYERS + REGISTER NEW WALK-INS
-          ========================================================================= */}
+      {/* STEP 2: SEARCH & RECRUIT STORED PLAYERS + REGISTER NEW WALK-INS */}
       {session.onboarding_step === 'player_setup' && (
         <div className="space-y-6">
           <div className="bg-[#111c30] border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
@@ -252,7 +249,7 @@ export function OnboardingFlow() {
                   RECRUIT PLAYERS FOR TODAY'S SESSION
                 </div>
                 <p className="text-xs text-slate-400">
-                  Search previously registered players or register new walk-in players.
+                  Search registered players and tap <strong>+ Recruit</strong> to import them into today's queue.
                 </p>
               </div>
 
@@ -280,15 +277,15 @@ export function OnboardingFlow() {
                 className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#0b1220] hover:bg-slate-800 text-[#fbbf24] border border-[#fbbf24]/40 font-mono text-xs font-bold transition flex items-center justify-center space-x-1"
               >
                 <UserPlus className="w-3.5 h-3.5" />
-                <span>{isCreatingNew ? 'Close Form' : '+ New Walk-in Player'}</span>
+                <span>{isCreatingNew ? 'Close Form' : '+ New Player'}</span>
               </button>
             </div>
 
-            {/* CREATE NEW WALK-IN PLAYER FORM (COLLAPSIBLE) */}
+            {/* REGISTER NEW PLAYER FORM */}
             {isCreatingNew && (
               <form onSubmit={handleCreateNewPlayer} className="p-4 bg-[#0b1220] border border-[#fbbf24]/40 rounded-2xl space-y-3">
                 <div className="text-xs font-mono uppercase text-[#fbbf24] font-bold">
-                  Register & Recruit New Player (Auto ID: PL-{100 + (players?.length || 0) + 1})
+                  Register Player to Directory (Assigned ID: PL-{100 + (players?.length || 0) + 1})
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -334,7 +331,7 @@ export function OnboardingFlow() {
                   type="submit"
                   className="w-full py-2.5 rounded-xl bg-[#fbbf24] text-slate-950 font-bold text-xs"
                 >
-                  Create & Add to Today's Session
+                  Save to Directory
                 </button>
               </form>
             )}
@@ -343,7 +340,7 @@ export function OnboardingFlow() {
             <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
               {filteredStoredPlayers.length === 0 ? (
                 <div className="py-8 text-center text-slate-500 font-mono text-xs italic bg-[#0b1220] rounded-2xl border border-slate-800">
-                  No registered players found. Click <strong className="text-white">+ New Walk-in Player</strong> above.
+                  No registered players found. Click <strong className="text-white">+ New Player</strong> above to register.
                 </div>
               ) : (
                 filteredStoredPlayers.map(p => {
@@ -360,7 +357,7 @@ export function OnboardingFlow() {
                       <div className="flex items-center space-x-2">
                         <span className="font-mono font-bold text-[#fbbf24]">{p.id}</span>
                         <span className="font-bold text-white">{p.name}</span>
-                        <span className="text-slate-400 font-mono text-[11px]">• {p.mmr_doubles} MMR</span>
+                        <span className="text-slate-400 font-mono text-[11px]">• {p.rank_name || 'Wood III'}</span>
                       </div>
 
                       {isRecruited ? (
@@ -401,9 +398,7 @@ export function OnboardingFlow() {
         </div>
       )}
 
-      {/* =========================================================================
-          STEP 3: TICK ACTIVE PLAYERS & LAUNCH MATCHMAKING
-          ========================================================================= */}
+      {/* STEP 3: TICK ACTIVE PLAYERS & LAUNCH MATCHMAKING */}
       {session.onboarding_step === 'checkin_ready' && (
         <div className="bg-[#111c30] border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
@@ -455,7 +450,7 @@ export function OnboardingFlow() {
                   </div>
 
                   <span className="font-mono text-xs font-bold text-slate-300">
-                    {player.mmr_doubles} MMR
+                    {player.rank_name || 'Wood III'}
                   </span>
                 </div>
               );

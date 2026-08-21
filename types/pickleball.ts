@@ -21,6 +21,15 @@ export type RankTier =
   | 'Diamond III' | 'Diamond II' | 'Diamond I'
   | 'Master';
 
+export interface Venue {
+  id: string;
+  name: string; // e.g. "BGC Pickleball Club"
+  default_courts: number;
+  default_mode: GameMode;
+  queue_capacity_per_court: number;
+  created_at: string;
+}
+
 export interface PromotionSeries {
   targetRankValue: number;
   targetRankName: RankTier;
@@ -30,15 +39,9 @@ export interface PromotionSeries {
   isSuccess: boolean;
 }
 
-export interface MatchHistoryEntry {
-  matchId: string;
-  opponentIds: string[];
-  partnerId?: string | null;
-  timestamp: string;
-}
-
 export interface Player {
   id: string; // e.g. "PL-101"
+  venue_id?: string;
   name: string;
   age?: number;
   gender?: Gender;
@@ -49,8 +52,8 @@ export interface Player {
   tier: Tier;
   sub_tier: SubTier;
   rank_name: RankTier;
-  highest_rank_value?: number; // Peak career rank value
-  highest_rank_name?: RankTier; // Peak career rank title
+  highest_rank_value?: number;
+  highest_rank_name?: RankTier;
   stars: number; // 0 to 5
   current_cp: number; // Career Court Points
   demotion_grace_matches: number;
@@ -67,6 +70,7 @@ export interface Player {
 
 export interface Session {
   id: string;
+  venue_id?: string;
   name: string;
   court_count: number;
   mode: GameMode;
@@ -75,12 +79,13 @@ export interface Session {
   total_session_capacity: number;
   created_at: string;
   last_active_at: string;
-  onboarding_step: 'session_gate' | 'court_setup' | 'player_setup' | 'checkin_ready' | 'active_hub';
+  onboarding_step: 'venue_select' | 'court_setup' | 'player_setup' | 'checkin_ready' | 'active_hub';
   is_active: boolean;
 }
 
 export interface SessionCheckin {
   id: string;
+  session_id?: string;
   player_id: string;
   games_played_today: number;
   checked_in_at: string;
@@ -88,6 +93,7 @@ export interface SessionCheckin {
 
 export interface Match {
   id: string;
+  session_id?: string;
   court_number: number;
   mode: GameMode;
   team_a_ids: string[];

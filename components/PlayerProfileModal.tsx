@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Player } from '../types/pickleball';
 import { useOpenPlay } from '../context/OpenPlayContext';
 import { getRankInfo } from '../lib/progression';
-import { X, History, Activity, Award } from 'lucide-react';
+import { X, History, Activity } from 'lucide-react';
 
 export function PlayerProfileModal({
   player,
@@ -38,7 +38,7 @@ export function PlayerProfileModal({
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-[#111c30] border border-slate-700 w-full max-w-lg rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
         
-        {/* HEADER: CLEAN IDENTITY */}
+        {/* HEADER: IDENTITY */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div>
             <div className="flex items-center space-x-2">
@@ -49,7 +49,7 @@ export function PlayerProfileModal({
                 {player.gender} {player.age ? `• ${player.age} yrs` : ''}
               </span>
             </div>
-            <h2 className="font-scoreboard text-3xl font-bold tracking-tight text-white uppercase italic mt-1 leading-none">
+            <h2 className="font-scoreboard text-3xl sm:text-4xl font-bold tracking-tight text-white uppercase italic mt-1 leading-none">
               {player.name}
             </h2>
           </div>
@@ -82,46 +82,52 @@ export function PlayerProfileModal({
         </div>
 
         {/* =========================================================================
-            TAB 1: OVERVIEW (HERO GREEN BOX WITH BIG BADGE + STATS GRID)
+            TAB 1: OVERVIEW (HERO BADGE SHOWCASE & STATS)
             ========================================================================= */}
         {activeTab === 'overview' && (
           <div className="space-y-5">
             
-            {/* HERO GREEN CARD: BIG UN-CROPPED BADGE + CURRENT RANK + CAREER CP + STARS */}
-            <div className="p-5 sm:p-6 rounded-2xl bg-[#0c2e1b] border-2 border-[#1b4d2e] shadow-lg space-y-4">
+            {/* HERO GREEN CARD: BORDERLESS GIANT GLOWING BADGE + COMPACT RANK + CP */}
+            <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-b from-[#0c2e1b] via-[#092214] to-[#06180e] border-2 border-[#1b4d2e] shadow-xl space-y-4 relative overflow-hidden">
               
-              {/* TOP ROW: LARGE EMBLEM + RANK TITLE + CAREER CP */}
+              {/* TOP ROW */}
               <div className="flex items-center justify-between gap-3">
                 
-                {/* Left: Big Uncropped Badge + Rank Name */}
-                <div className="flex items-center space-x-3.5 min-w-0">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 flex items-center justify-center p-1 bg-[#071910]/80 rounded-2xl border border-emerald-500/30 shadow-md">
+                {/* Left: Floating Glowing Badge + Refined Compact Rank Name */}
+                <div className="flex items-center space-x-4 min-w-0">
+                  
+                  {/* BORDERLESS GIANT BADGE WITH HIGH-IMPACT AURA */}
+                  <div className="relative w-28 h-28 sm:w-36 sm:h-36 flex-shrink-0 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-[#fbbf24]/25 blur-2xl rounded-full scale-125 animate-pulse pointer-events-none" />
+                    <div className="absolute inset-2 bg-[#2dd4bf]/20 blur-xl rounded-full scale-110 pointer-events-none" />
+                    
                     <img
                       src={`/assets/${rankInfo.tier}.png`}
                       alt={rankInfo.displayName}
-                      className="w-full h-full object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
+                      className="relative z-10 w-full h-full object-contain filter drop-shadow-[0_0_25px_rgba(251,191,36,0.6)] drop-shadow-[0_10px_20px_rgba(0,0,0,0.9)] brightness-110 hover:scale-105 transition-transform duration-300"
                     />
                   </div>
 
+                  {/* Refined Sized Rank Name */}
                   <div className="min-w-0 space-y-0.5">
-                    <div className="text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-[#2dd4bf]/90 font-bold">
+                    <div className="text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-[#2dd4bf] font-bold">
                       Current Rank
                     </div>
-                    <div className="font-scoreboard text-2xl sm:text-3xl font-black text-white uppercase italic truncate leading-none">
+                    <div className="font-scoreboard text-xl sm:text-2xl font-bold text-white uppercase italic truncate leading-none drop-shadow">
                       {rankInfo.displayName}
                     </div>
-                    <div className="text-[11px] font-mono text-slate-300 pt-0.5">
-                      Tier Level <span className="text-[#fbbf24] font-bold">{rankInfo.rankValue}</span> of 19
+                    <div className="text-xs font-mono text-slate-300 pt-0.5">
+                      Tier Level <span className="text-[#fbbf24] font-bold">{rankInfo.rankValue}</span> / 19
                     </div>
                   </div>
                 </div>
 
                 {/* Right: Career CP */}
-                <div className="text-right font-mono flex-shrink-0 pl-2">
-                  <div className="text-[9px] sm:text-[10px] uppercase text-slate-400 font-bold tracking-wider">
+                <div className="text-right font-mono flex-shrink-0 pl-1">
+                  <div className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">
                     Career CP
                   </div>
-                  <div className="font-scoreboard text-2xl sm:text-3xl font-black text-[#fbbf24] leading-none mt-0.5">
+                  <div className="font-scoreboard text-2xl sm:text-3xl font-black text-[#fbbf24] leading-none mt-1">
                     {player.current_cp || 0}
                     <span className="text-xs font-normal text-slate-300 ml-1">CP</span>
                   </div>
@@ -132,7 +138,7 @@ export function PlayerProfileModal({
               {player.rank_value < 19 && (
                 <div className="space-y-1.5 pt-3 border-t border-slate-700/60">
                   <div className="flex items-center justify-between text-xs font-mono">
-                    <span className="text-slate-300 font-semibold">Sub-Tier Promotion Stars:</span>
+                    <span className="text-slate-300 font-semibold">Sub-Tier Promotion Progress:</span>
                     <span className="text-[#fbbf24] font-bold">{player.stars || 0} / 5 Stars</span>
                   </div>
 
@@ -170,7 +176,7 @@ export function PlayerProfileModal({
               )}
             </div>
 
-            {/* CAREER STATS 4-GRID (WITH "HIGHEST RANK" REPLACING REDUNDANT CURRENT RANK) */}
+            {/* CAREER STATS 4-GRID (BIG BADGE + SMALLER TEXT BELOW IN HIGHEST RANK) */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="p-3.5 bg-[#0b1220] border border-slate-800 rounded-2xl space-y-1">
                 <div className="text-[10px] font-mono uppercase text-slate-400 font-bold">Total Played</div>
@@ -192,20 +198,30 @@ export function PlayerProfileModal({
                 <div className="text-[10px] text-slate-500 font-mono">Career</div>
               </div>
 
-              {/* HIGHEST / PEAK CAREER RANK BOX */}
-              <div className="p-3.5 bg-[#0b1220] border border-slate-800 rounded-2xl space-y-1">
-                <div className="text-[10px] font-mono uppercase text-slate-400 font-bold">Highest Rank</div>
-                <div className="flex items-center space-x-1.5 pt-0.5">
+              {/* HIGHEST / PEAK RANK BOX (BIGGER GLOWING BADGE + SMALLER COMPACT NAME BELOW) */}
+              <div className="p-3 bg-[#0b1220] border border-slate-800 rounded-2xl flex flex-col items-center justify-between text-center space-y-1">
+                <div className="text-[9px] font-mono uppercase text-slate-400 font-bold tracking-wider w-full text-left sm:text-center">
+                  Highest Rank
+                </div>
+
+                {/* Big Glowing Badge */}
+                <div className="relative w-11 h-11 sm:w-12 sm:h-12 my-0.5 flex items-center justify-center">
+                  <div className="absolute inset-0 bg-[#fbbf24]/20 blur-md rounded-full pointer-events-none" />
                   <img
                     src={`/assets/${highestRankInfo.tier}.png`}
                     alt={highestRankInfo.displayName}
-                    className="w-6 h-6 object-contain drop-shadow flex-shrink-0"
+                    className="relative z-10 w-full h-full object-contain filter drop-shadow-[0_0_12px_rgba(251,191,36,0.6)] brightness-110"
                   />
-                  <div className="font-scoreboard text-base font-bold text-white italic truncate leading-tight">
-                    {highestRankInfo.displayName}
-                  </div>
                 </div>
-                <div className="text-[10px] text-slate-500 font-mono">Peak Career</div>
+
+                {/* Smaller, Elegant Rank Name Below Icon */}
+                <div className="font-scoreboard text-[11px] sm:text-xs font-bold text-white uppercase italic leading-tight">
+                  {highestRankInfo.displayName}
+                </div>
+
+                <div className="text-[9px] text-[#2dd4bf] font-mono font-medium">
+                  Peak Career
+                </div>
               </div>
             </div>
 
