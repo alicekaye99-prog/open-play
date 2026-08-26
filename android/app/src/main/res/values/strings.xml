@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Pikol Legends</string>
+    <string name="title_activity_main">Pikol Legends</string>
+    <string name="package_name">com.pikol.legends</string>
+    <string name="custom_url_scheme">com.pikol.legends</string>
+</resources>
